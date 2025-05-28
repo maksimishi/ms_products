@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Каталог товаров - Таблица</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.4;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+        
+        .stats {
+            background: #f8f9fa;
+            padding: 15px 30px;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            max-height: 80vh;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        th {
+            background: #343a40;
+            color: white;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #dee2e6;
+            vertical-align: top;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .product-name {
+            font-weight: 600;
+            color: #2c3e50;
+            min-width: 200px;
+        }
+        
+        .article {
+            font-family: 'Courier New', monospace;
+            background: #e9ecef;
+            padding: 2px 4px;
+            border-radius: 3px;
+            min-width: 100px;
+        }
+        
+        .tnved {
+            min-width: 120px;
+        }
+        
+        .tnved-code {
+            font-family: 'Courier New', monospace;
+            background: #f0f8ff;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        
+        .composition {
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+        
+        .documents {
+            max-width: 150px;
+            word-wrap: break-word;
+            font-size: 12px;
+        }
+        
+        .product-type {
+            background: #007bff;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        
+        .characteristics {
+            font-size: 12px;
+        }
+        
+        .char-item {
+            background: #e3f2fd;
+            padding: 2px 6px;
+            margin: 1px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        
+        .variant-badge {
+            background: #28a745;
+            color: white;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 9px;
+            text-transform: uppercase;
+        }
+        
+        .empty-value {
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .navigation {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .nav-link {
+            display: inline-block;
+            margin-right: 15px;
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .nav-link:hover {
+            background: #0056b3;
+        }
+        
+        .no-products {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+            font-size: 18px;
+        }
+        
+        /* Стили для валидации */
+        .validation-badge {
+            display: inline-block;
+            margin-left: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .validation-badge.valid {
+            color: #28a745;
+        }
+        
+        .validation-badge.invalid {
+            color: #dc3545;
+        }
+        
+        .color-value.valid,
+        .product-type.valid {
+            background-color: #d4edda;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        .color-value.invalid,
+        .product-type.invalid {
+            background-color: #f8d7da;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        .suggestion-select {
+            display: block;
+            margin-top: 5px;
+            padding: 2px 4px;
+            border: 1px solid #007bff;
+            border-radius: 3px;
+            font-size: 11px;
+            background-color: #e3f2fd;
+        }
+        
+        .suggestion-select:focus {
+            outline: none;
+            border-color: #0056b3;
+        }
+        
+        /* Стили для кнопок действий */
+        .actions {
+            min-width: 140px;
+            text-align: center;
+        }
+        
+        .action-btn {
+            display: block;
+            width: 100%;
+            margin: 2px 0;
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .preview-btn {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .preview-btn:hover {
+            background: #138496;
+        }
+        
+        .send-btn {
+            background: #28a745;
+            color: white;
+        }
+        
+        .send-btn:hover {
+            background: #218838;
+        }
+        
+        .send-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        /* Модальное окно */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Каталог товаров для национального каталога</h1>
+            <p>Товары с характеристиками в табличном виде</p>
+        </div>
+        
+        <div class="stats">
+            Найдено товаров: <strong>{{ products|length }}</strong>
+            {% if total_items %}
+                | Всего в системе: {{ total_items }}
+            {% endif %}
+        </div>
+        
+        {% if products %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Наименование</th>
+                        <th>Артикул</th>
+                        <th>ТН ВЭД</th>
+                        <th>Состав</th>
+                        <th>Бренд НК</th>
+                        <th>Разреш. документы</th>
+                        <th>Вид товара</th>
+                        <th>Характеристики</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td class="product-name">
+                            {{ product.name or 'Без названия' }}
+                            {% if product.item_type == 'variant' %}
+                                <span class="variant-badge">вариант</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="article">
+                            {% if product.article %}
+                                {{ product.article }}
+                            {% else %}
+                                <span class="empty-value">Не указан</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="tnved">
+                            {% if product.tnved %}
+                                <span class="tnved-code">{{ product.tnved }}</span>
+                                {% if product.tnved|length == 10 %}
+                                    <small style="color: #28a745;">(детальный)</small>
+                                {% elif product.tnved|length == 4 %}
+                                    <small style="color: #007bff;">(группа)</small>
+                                {% endif %}
+                            {% else %}
+                                <span class="empty-value">Не указан</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="composition">
+                            {% if product.composition %}
+                                {{ product.composition }}
+                            {% else %}
+                                <span class="empty-value">Не указан</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="documents">
+                            {% if product.brand_nk %}
+                                {{ product.brand_nk }}
+                            {% else %}
+                                <span class="empty-value">Не указан</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="documents">
+                            {% if product.permit_docs %}
+                                {{ product.permit_docs }}
+                            {% else %}
+                                <span class="empty-value">Не указаны</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td>
+                            {% if product.product_type %}
+                                {% if product.product_type_valid %}
+                                    <span class="product-type valid">{{ product.product_type }}</span>
+                                    <span class="validation-badge valid">✓</span>
+                                {% else %}
+                                    <span class="product-type invalid">{{ product.product_type }}</span>
+                                    <span class="validation-badge invalid">✗</span>
+                                    {% if product.product_type_suggestions %}
+                                        <select class="suggestion-select" data-field="product_type" onchange="updateField(this)">
+                                            <option value="">Выберите из НК</option>
+                                            {% for suggestion in product.product_type_suggestions %}
+                                                <option value="{{ suggestion }}">{{ suggestion }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    {% endif %}
+                                {% endif %}
+                            {% else %}
+                                <span class="empty-value">Не указан</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="characteristics">
+                            {% if product.color or product.size %}
+                                {% if product.color %}
+                                    <span class="char-item">
+                                        <strong>Цвет:</strong>
+                                        {% if product.color_valid %}
+                                            <span class="color-value valid">{{ product.color }}</span>
+                                            <span class="validation-badge valid">✓</span>
+                                        {% else %}
+                                            <span class="color-value invalid">{{ product.color }}</span>
+                                            <span class="validation-badge invalid">✗</span>
+                                            {% if product.color_suggestions %}
+                                                <select class="suggestion-select" data-field="color" onchange="updateField(this)">
+                                                    <option value="">Выберите из НК</option>
+                                                    {% for suggestion in product.color_suggestions %}
+                                                        <option value="{{ suggestion }}">{{ suggestion }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            {% endif %}
+                                        {% endif %}
+                                    </span>
+                                {% endif %}
+                                {% if product.size %}
+                                    <span class="char-item"><strong>Размер:</strong> {{ product.size }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="empty-value">Не указаны</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="actions">
+                            <button class="action-btn preview-btn" data-index="{{ loop.index0 }}" onclick="previewCard(this.getAttribute('data-index'))">
+                                👁️ Превью
+                            </button>
+                            <button class="action-btn send-btn" data-index="{{ loop.index0 }}" onclick="sendToNK(this.getAttribute('data-index'))" 
+                                    {% if not product.tnved or not product.name %}disabled{% endif %}>
+                                📤 В НК
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="no-products">
+            <h3>Товары для национального каталога не найдены</h3>
+            <p>Убедитесь, что у товаров установлен флажок "Для нац.каталога"</p>
+        </div>
+        {% endif %}
+        
+        <div class="navigation">
+            <a href="/analyze" class="nav-link">🔍 Анализ структуры</a>
+            <a href="/all" class="nav-link">📋 Все товары</a>
+            <a href="/test" class="nav-link">🔧 Тест API</a>
+        </div>
+    </div>
+    
+    <!-- Модальное окно -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modal-title"></h2>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Модальное окно
+        function showModal(title, content) {
+            // Создаем модальное окно если его нет
+            let modal = document.getElementById('modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'modal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <span class="close" onclick="closeModal()">&times;</span>
+                        <h2 id="modal-title"></h2>
+                        <div id="modal-body"></div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').innerHTML = content;
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Закрытие модального окна при клике вне его
+        window.onclick = function(event) {
+            const modal = document.getElementById('modal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        function updateField(selectElement) {
+            const field = selectElement.getAttribute('data-field');
+            const newValue = selectElement.value;
+            
+            if (!newValue) return;
+            
+            // Находим соответствующий элемент для обновления
+            const row = selectElement.closest('tr');
+            const fieldElement = row.querySelector(`.${field}-value, .product-type`);
+            
+            if (fieldElement) {
+                fieldElement.textContent = newValue;
+                fieldElement.classList.remove('invalid');
+                fieldElement.classList.add('valid');
+                
+                // Обновляем значок валидации
+                const badge = fieldElement.nextElementSibling;
+                if (badge && badge.classList.contains('validation-badge')) {
+                    badge.textContent = '✓';
+                    badge.classList.remove('invalid');
+                    badge.classList.add('valid');
+                }
+                
+                // Скрываем dropdown
+                selectElement.style.display = 'none';
+                
+                console.log(`Обновлено поле ${field}: ${newValue}`);
+            }
+        }
+
+        // Можно добавить сохранение изменений в будущем
+        function saveChanges() {
+            // TODO: отправка обновленных данных на сервер
+            console.log('Сохранение изменений...');
+        }
+
+        // Функции для работы с НК
+        function previewCard(productIndex) {
+            fetch(`/nk_preview/${productIndex}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Ошибка: ' + data.error);
+                        return;
+                    }
+                    
+                    showModal('Превью карточки для НК', `
+                        <h3>${data.product_data.name}</h3>
+                        <p><strong>Бренд:</strong> ${data.brand}</p>
+                        <p><strong>Категория НК:</strong> ${data.category_id} - ${data.category_name}</p>
+                        <p><strong>ТН ВЭД:</strong> ${data.product_data.tnved}</p>
+                        <p><strong>Вид товара:</strong> ${data.product_data.product_type || 'Не указан'}</p>
+                        <h4>Данные для отправки:</h4>
+                        <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-size: 12px; overflow-x: auto;">${JSON.stringify(data.nk_card_data, null, 2)}</pre>
+                    `);
+                })
+                .catch(error => {
+                    alert('Ошибка: ' + error);
+                });
+        }
+
+        function sendToNK(productIndex) {
+            if (!confirm('Отправить товар в Национальный каталог?')) {
+                return;
+            }
+            
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ Отправка...';
+            
+            fetch(`/send_to_nk/${productIndex}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showModal('Успешная отправка', `
+                        <h3>✅ Карточка отправлена</h3>
+                        <p><strong>Товар:</strong> ${data.product_name}</p>
+                        <p><strong>Feed ID:</strong> ${data.feed_id}</p>
+                        <button onclick="checkFeedStatus('${data.feed_id}')" class="action-btn send-btn">Проверить статус</button>
+                    `);
+                    btn.textContent = '✅ Отправлено';
+                    btn.style.background = '#6c757d';
+                } else {
+                    showModal('Ошибка отправки', `
+                        <h3>❌ Ошибка</h3>
+                        <p>${data.error}</p>
+                        ${data.status_code ? `<p><strong>Код:</strong> ${data.status_code}</p>` : ''}
+                    `);
+                    btn.disabled = false;
+                    btn.textContent = '📤 В НК';
+                }
+            })
+            .catch(error => {
+                alert('Ошибка: ' + error);
+                btn.disabled = false;
+                btn.textContent = '📤 В НК';
+            });
+        }
+
+        function checkFeedStatus(feedId) {
+            fetch(`/check_feed_status/${feedId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const feedData = data.data.result;
+                        showModal('Статус обработки', `
+                            <h3>📋 Статус Feed ${feedId}</h3>
+                            <p><strong>Статус:</strong> ${feedData.status}</p>
+                            <p><strong>Создан:</strong> ${new Date(feedData.created_at).toLocaleString('ru-RU')}</p>
+                            ${feedData.updated_at ? `<p><strong>Обновлен:</strong> ${new Date(feedData.updated_at).toLocaleString('ru-RU')}</p>` : ''}
+                            ${feedData.errors ? `
+                                <h4>Ошибки:</h4>
+                                <pre style="background: #f8d7da; padding: 10px; border-radius: 5px; font-size: 12px;">${JSON.stringify(feedData.errors, null, 2)}</pre>
+                            ` : ''}
+                            ${feedData.warnings ? `
+                                <h4>Предупреждения:</h4>
+                                <pre style="background: #fff3cd; padding: 10px; border-radius: 5px; font-size: 12px;">${JSON.stringify(feedData.warnings, null, 2)}</pre>
+                            ` : ''}
+                            <button onclick="checkFeedStatus('${feedId}')" class="action-btn preview-btn" style="margin-top: 10px;">🔄 Обновить статус</button>
+                        `);
+                    } else {
+                        showModal('Ошибка', `
+                            <h3>❌ Не удалось получить статус</h3>
+                            <p>${data.error}</p>
+                        `);
+                    }
+                })
+                .catch(error => {
+                    alert('Ошибка: ' + error);
+                });
+        }
+    </script>
+</body>
+</html>
