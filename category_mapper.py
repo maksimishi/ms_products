@@ -202,3 +202,4 @@ if __name__ == "__main__":
         cat_id = choose_category(tnved, product_type)
         print(f"\n✅ {product_type} → категория {cat_id}")
         print("-" * 50)
+
