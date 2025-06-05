@@ -936,7 +936,106 @@ def check_feed_status_route(feed_id):
             "error": str(e),
             "traceback": traceback.format_exc()
         })
+
+
     
+@app.route('/debug/categories/<tnved>')
+def debug_categories(tnved):
+    """Отладочный маршрут для проверки категорий по ТН ВЭД"""
+    try:
+        from nk_api import get_categories_by_tnved, determine_category_for_tnved, get_attributes_for_category
+        
+        # Получаем категории
+        categories = get_categories_by_tnved(tnved)
+        
+        # Определяем основную категорию
+        main_cat_id = determine_category_for_tnved(tnved)
+        
+        # Получаем обязательные атрибуты для основной категории
+        required_attrs = []
+        if main_cat_id:
+            attrs = get_attributes_for_category(main_cat_id, attr_type="m")
+            required_attrs = [{"id": a.get("attr_id"), "name": a.get("attr_name")} for a in attrs[:10]]
+        
+        return jsonify({
+            "tnved": tnved,
+            "categories": categories,
+            "selected_category": main_cat_id,
+            "required_attributes_sample": required_attrs
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+# Добавьте этот новый маршрут в app.py для отладки
+
+@app.route('/debug_product/<int:product_index>')
+def debug_product_by_index(product_index):
+    """Отладочный маршрут для проверки товара по индексу"""
+    try:
+        print(f"\n🔍 === ОТЛАДКА ТОВАРА ПО ИНДЕКСУ {product_index} ===")
+        
+        # Получаем товар тем же способом, что и при отправке
+        item, is_variant = api.get_product_by_index(product_index)
+        
+        if not item:
+            return jsonify({
+                'error': f'Товар с индексом {product_index} не найден',
+                'index': product_index
+            })
+        
+        # Получаем полные данные товара
+        product_data = api.extract_item_data_with_inheritance(item)
+        
+        # Собираем отладочную информацию
+        debug_info = {
+            'index': product_index,
+            'found': True,
+            'item_raw': {
+                'id': item.get('id'),
+                'name': item.get('name'),
+                'type': item.get('meta', {}).get('type'),
+                'article': item.get('article'),
+                'tnved': item.get('tnved'),
+                'barcodes_count': len(item.get('barcodes', [])),
+                'existing_barcodes': item.get('barcodes', [])
+            },
+            'processed_data': product_data,
+            'is_variant': is_variant,
+            'has_parent': '_parent_product' in item,
+            'parent_info': None
+        }
+        
+        # Если это вариант, добавляем информацию о родителе
+        if is_variant and '_parent_product' in item:
+            parent = item['_parent_product']
+            debug_info['parent_info'] = {
+                'id': parent.get('id'),
+                'name': parent.get('name'),
+                'article': parent.get('article'),
+                'tnved': parent.get('tnved'),
+                'barcodes_count': len(parent.get('barcodes', [])),
+                'existing_barcodes': parent.get('barcodes', [])
+            }
+        
+        print(f"✅ Отладочная информация собрана")
+        return jsonify(debug_info)
+        
+    except Exception as e:
+        print(f"❌ Ошибка отладки: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'index': product_index,
+            'traceback': traceback.format_exc()
+        })
+
+
+
+# Добавьте эти обновленные роуты в app.py:
+
 def apply_user_changes(product_data, user_changes):
     """Применяет пользовательские изменения к данным товара"""
     if not user_changes:
@@ -1193,4 +1292,3 @@ def send_product_to_nk(product_index):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
