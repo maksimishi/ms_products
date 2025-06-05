@@ -300,6 +300,27 @@
         .close:hover {
             color: black;
         }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Индикатор изменений */
+        .changed-field {
+            background-color: #fff3cd !important;
+            border-left: 3px solid #ffc107 !important;
+        }
     </style>
 </head>
 <body>
@@ -334,7 +355,7 @@
                 </thead>
                 <tbody>
                     {% for product in products %}
-                    <tr>
+                    <tr data-product-index="{{ loop.index0 }}">
                         <td class="product-name">
                             {{ product.name or 'Без названия' }}
                             {% if product.item_type == 'variant' %}
@@ -387,16 +408,16 @@
                             {% endif %}
                         </td>
                         
-                        <td>
+                        <td data-field-name="product_type">
                             {% if product.product_type %}
                                 {% if product.product_type_valid %}
-                                    <span class="product-type valid">{{ product.product_type }}</span>
+                                    <span class="product-type valid" data-original-value="{{ product.product_type }}">{{ product.product_type }}</span>
                                     <span class="validation-badge valid">✓</span>
                                 {% else %}
-                                    <span class="product-type invalid">{{ product.product_type }}</span>
+                                    <span class="product-type invalid" data-original-value="{{ product.product_type }}">{{ product.product_type }}</span>
                                     <span class="validation-badge invalid">✗</span>
                                     {% if product.product_type_suggestions %}
-                                        <select class="suggestion-select" data-field="product_type" onchange="updateField(this)">
+                                        <select class="suggestion-select" data-field="product_type" data-product-index="{{ loop.index0 }}" onchange="updateField(this)">
                                             <option value="">Выберите из НК</option>
                                             {% for suggestion in product.product_type_suggestions %}
                                                 <option value="{{ suggestion }}">{{ suggestion }}</option>
@@ -409,19 +430,19 @@
                             {% endif %}
                         </td>
                         
-                        <td class="characteristics">
+                        <td class="characteristics" data-field-name="color">
                             {% if product.color or product.size %}
                                 {% if product.color %}
                                     <span class="char-item">
                                         <strong>Цвет:</strong>
                                         {% if product.color_valid %}
-                                            <span class="color-value valid">{{ product.color }}</span>
+                                            <span class="color-value valid" data-original-value="{{ product.color }}">{{ product.color }}</span>
                                             <span class="validation-badge valid">✓</span>
                                         {% else %}
-                                            <span class="color-value invalid">{{ product.color }}</span>
+                                            <span class="color-value invalid" data-original-value="{{ product.color }}">{{ product.color }}</span>
                                             <span class="validation-badge invalid">✗</span>
                                             {% if product.color_suggestions %}
-                                                <select class="suggestion-select" data-field="color" onchange="updateField(this)">
+                                                <select class="suggestion-select" data-field="color" data-product-index="{{ loop.index0 }}" onchange="updateField(this)">
                                                     <option value="">Выберите из НК</option>
                                                     {% for suggestion in product.color_suggestions %}
                                                         <option value="{{ suggestion }}">{{ suggestion }}</option>
@@ -446,6 +467,9 @@
                             <button class="action-btn send-btn" data-index="{{ loop.index0 }}" onclick="sendToNK(this.getAttribute('data-index'))" 
                                     {% if not product.tnved or not product.name %}disabled{% endif %}>
                                 📤 В НК
+                            </button>
+                            <button class="action-btn" style="background: #ffc107; color: #212529;" data-index="{{ loop.index0 }}" onclick="debugProduct(this.getAttribute('data-index'))">
+                                🔍 Отладка
                             </button>
                         </td>
                     </tr>
@@ -476,181 +500,642 @@
         </div>
     </div>
     
-    <script>
-        // Модальное окно
-        function showModal(title, content) {
-            // Создаем модальное окно если его нет
-            let modal = document.getElementById('modal');
-            if (!modal) {
-                modal = document.createElement('div');
-                modal.id = 'modal';
-                modal.className = 'modal';
-                modal.innerHTML = `
-                    <div class="modal-content">
-                        <span class="close" onclick="closeModal()">&times;</span>
-                        <h2 id="modal-title"></h2>
-                        <div id="modal-body"></div>
+<script>
+// ===============================================
+// СИСТЕМА ОТСЛЕЖИВАНИЯ ПОЛЬЗОВАТЕЛЬСКИХ ИЗМЕНЕНИЙ
+// ===============================================
+
+// Глобальный объект для хранения пользовательских изменений
+window.userChanges = {};
+
+// Функция для сохранения изменения
+function saveUserChange(productIndex, field, newValue) {
+    if (!window.userChanges[productIndex]) {
+        window.userChanges[productIndex] = {};
+    }
+    window.userChanges[productIndex][field] = newValue;
+    
+    console.log(`💾 Сохранено изменение для товара ${productIndex}:`, {
+        field: field,
+        value: newValue,
+        allChanges: window.userChanges[productIndex]
+    });
+}
+
+// Функция для получения актуального значения поля (с учетом пользовательских изменений)
+function getActualValue(productIndex, field, originalValue) {
+    if (window.userChanges[productIndex] && window.userChanges[productIndex][field] !== undefined) {
+        return window.userChanges[productIndex][field];
+    }
+    return originalValue;
+}
+
+// Обновленная функция updateField
+function updateField(selectElement) {
+    const field = selectElement.getAttribute('data-field');
+    const newValue = selectElement.value;
+    const productIndex = parseInt(selectElement.getAttribute('data-product-index'));
+    
+    if (!newValue) return;
+    
+    console.log(`🔄 Обновляем поле ${field} для товара ${productIndex}: "${newValue}"`);
+    
+    // Сохраняем изменение
+    saveUserChange(productIndex, field, newValue);
+    
+    // Находим соответствующий элемент для обновления отображения
+    const row = selectElement.closest('tr');
+    const fieldElement = row.querySelector(`.${field}-value, .product-type`);
+    
+    if (fieldElement) {
+        fieldElement.textContent = newValue;
+        fieldElement.classList.remove('invalid');
+        fieldElement.classList.add('valid');
+        
+        // Обновляем значок валидации
+        const badge = fieldElement.nextElementSibling;
+        if (badge && badge.classList.contains('validation-badge')) {
+            badge.textContent = '✓';
+            badge.classList.remove('invalid');
+            badge.classList.add('valid');
+        }
+        
+        // Скрываем dropdown
+        selectElement.style.display = 'none';
+        
+        // Выделяем ячейку как измененную
+        const cell = fieldElement.closest('td');
+        if (cell) {
+            cell.classList.add('changed-field');
+        }
+        
+        console.log(`✅ Поле ${field} успешно обновлено в интерфейсе`);
+    }
+}
+
+// ===============================================
+// МОДАЛЬНОЕ ОКНО
+// ===============================================
+
+function showModal(title, content) {
+    let modal = document.getElementById('modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <h2 id="modal-title"></h2>
+                <div id="modal-body"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').innerHTML = content;
+    modal.style.display = 'block';
+}
+
+function closeModal() {
+    const modal = document.getElementById('modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Закрытие модального окна при клике вне его
+window.onclick = function(event) {
+    const modal = document.getElementById('modal');
+    if (event.target == modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// ===============================================
+// ФУНКЦИИ ДЛЯ РАБОТЫ С НК
+// ===============================================
+
+function previewCard(productIndex) {
+    console.log(`👁️ Предпросмотр карточки для товара ${productIndex}`);
+    console.log(`📝 Пользовательские изменения:`, window.userChanges[productIndex] || 'нет');
+    
+    // Формируем URL с параметрами пользовательских изменений
+    let url = `/nk_preview/${productIndex}`;
+    const userChangesForProduct = window.userChanges[productIndex];
+    
+    if (userChangesForProduct && Object.keys(userChangesForProduct).length > 0) {
+        // Передаем изменения как POST запрос
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_changes: userChangesForProduct
+            })
+        })
+        .then(response => response.json())
+        .then(handlePreviewResponse)
+        .catch(error => {
+            alert('Ошибка: ' + error);
+        });
+    } else {
+        // Обычный GET запрос, если изменений нет
+        fetch(url)
+            .then(response => response.json())
+            .then(handlePreviewResponse)
+            .catch(error => {
+                alert('Ошибка: ' + error);
+            });
+    }
+}
+
+function handlePreviewResponse(data) {
+    if (data.error) {
+        alert('Ошибка: ' + data.error);
+        return;
+    }
+    
+    let changesInfo = '';
+    if (data.applied_changes && Object.keys(data.applied_changes).length > 0) {
+        changesInfo = `
+            <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ffc107;">
+                <h4 style="margin: 0 0 5px 0; color: #856404;">✏️ Применены пользовательские изменения:</h4>
+                ${Object.entries(data.applied_changes).map(([field, value]) => 
+                    `<p style="margin: 2px 0;"><strong>${field}:</strong> ${value}</p>`
+                ).join('')}
+            </div>
+        `;
+    }
+    
+    showModal('Превью карточки для НК', `
+        <h3>${data.product_data.name}</h3>
+        <p><strong>Бренд:</strong> ${data.brand}</p>
+        <p><strong>Категория НК:</strong> ${data.category_id} ${data.category_info ? '- ' + data.category_info.name : ''}</p>
+        <p><strong>ТН ВЭД:</strong> ${data.product_data.tnved}</p>
+        <p><strong>Вид товара:</strong> ${data.product_data.product_type || 'Не указан'}</p>
+        <p><strong>Цвет:</strong> ${data.product_data.color || 'Не указан'}</p>
+        ${changesInfo}
+        <h4>Данные для отправки:</h4>
+        <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-size: 12px; overflow-x: auto;">${JSON.stringify(data.nk_card_data, null, 2)}</pre>
+    `);
+}
+
+function sendToNK(productIndex) {
+    if (!confirm('Отправить товар в Национальный каталог?')) {
+        return;
+    }
+    
+    console.log(`📤 Отправляем товар ${productIndex} в НК`);
+    console.log(`📝 Пользовательские изменения:`, window.userChanges[productIndex] || 'нет');
+    
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Отправка...';
+    
+    // Подготавливаем данные для отправки
+    const requestData = {
+        user_changes: window.userChanges[productIndex] || {}
+    };
+    
+    fetch(`/send_to_nk/${productIndex}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let modalContent = `
+                <h3>✅ Карточка отправлена</h3>
+                <p><strong>Товар:</strong> ${data.product_name}</p>
+                <p><strong>Feed ID:</strong> ${data.feed_id}</p>
+                <p><strong>Статус:</strong> ${data.status || 'Неизвестен'}</p>
+            `;
+            
+            // Показываем примененные изменения
+            if (data.applied_changes && Object.keys(data.applied_changes).length > 0) {
+                modalContent += `
+                    <div style="background: #d4edda; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #28a745;">
+                        <h4 style="margin: 0 0 5px 0; color: #155724;">✏️ Применены изменения:</h4>
+                        ${Object.entries(data.applied_changes).map(([field, value]) => 
+                            `<p style="margin: 2px 0;"><strong>${field}:</strong> ${value}</p>`
+                        ).join('')}
                     </div>
                 `;
-                document.body.appendChild(modal);
             }
             
-            document.getElementById('modal-title').textContent = title;
-            document.getElementById('modal-body').innerHTML = content;
-            modal.style.display = 'block';
-        }
-
-        function closeModal() {
-            const modal = document.getElementById('modal');
-            if (modal) {
-                modal.style.display = 'none';
-            }
-        }
-
-        // Закрытие модального окна при клике вне его
-        window.onclick = function(event) {
-            const modal = document.getElementById('modal');
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        }
-
-        function updateField(selectElement) {
-            const field = selectElement.getAttribute('data-field');
-            const newValue = selectElement.value;
-            
-            if (!newValue) return;
-            
-            // Находим соответствующий элемент для обновления
-            const row = selectElement.closest('tr');
-            const fieldElement = row.querySelector(`.${field}-value, .product-type`);
-            
-            if (fieldElement) {
-                fieldElement.textContent = newValue;
-                fieldElement.classList.remove('invalid');
-                fieldElement.classList.add('valid');
+            // Добавляем информацию о GTIN
+            if (data.gtin) {
+                modalContent += `
+                    <div style="background: #d4edda; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #28a745;">
+                        <h4 style="margin: 0 0 5px 0; color: #155724;">🏷️ GTIN получен</h4>
+                        <p style="margin: 0; font-family: 'Courier New', monospace; font-weight: bold; font-size: 16px;">${data.gtin}</p>
+                    </div>
+                `;
                 
-                // Обновляем значок валидации
-                const badge = fieldElement.nextElementSibling;
-                if (badge && badge.classList.contains('validation-badge')) {
-                    badge.textContent = '✓';
-                    badge.classList.remove('invalid');
-                    badge.classList.add('valid');
+                // Информация об обновлении в МойСклад
+                if (data.gtin_updated_in_ms) {
+                    modalContent += `
+                        <div style="background: #d1ecf1; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #17a2b8;">
+                            <h4 style="margin: 0 0 5px 0; color: #0c5460;">✅ МойСклад обновлен</h4>
+                            <p style="margin: 0;">${data.ms_update_message}</p>
+                        </div>
+                    `;
+                } else if (data.ms_update_error) {
+                    modalContent += `
+                        <div style="background: #f8d7da; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #dc3545;">
+                            <h4 style="margin: 0 0 5px 0; color: #721c24;">⚠️ Ошибка обновления МойСклад</h4>
+                            <p style="margin: 0;">${data.ms_update_error}</p>
+                        </div>
+                    `;
+                }
+            } else {
+                modalContent += `
+                    <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ffc107;">
+                        <p style="margin: 0; color: #856404;">⚠️ GTIN пока не получен. Возможно, карточка еще обрабатывается.</p>
+                    </div>
+                `;
+            }
+            
+            // Добавляем ошибки валидации, если есть
+            if (data.errors && data.errors.length > 0) {
+                modalContent += `
+                    <div style="background: #f8d7da; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                        <h4 style="color: #721c24;">❌ Ошибки валидации:</h4>
+                        <ul style="margin: 5px 0;">
+                            ${data.errors.map(error => `<li>${error.message}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            modalContent += `
+                <div style="margin-top: 15px;">
+                    <button onclick="checkFeedStatus('${data.feed_id}', ${productIndex})" class="action-btn preview-btn">
+                        🔄 Проверить статус
+                    </button>
+                </div>
+            `;
+            
+            showModal('Результат отправки', modalContent);
+            
+            btn.textContent = '✅ Отправлено';
+            btn.style.background = '#6c757d';
+        } else {
+            showModal('Ошибка отправки', `
+                <h3>❌ Ошибка</h3>
+                <p>${data.error}</p>
+                ${data.status_code ? `<p><strong>Код:</strong> ${data.status_code}</p>` : ''}
+            `);
+            btn.disabled = false;
+            btn.textContent = '📤 В НК';
+        }
+    })
+    .catch(error => {
+        alert('Ошибка: ' + error);
+        btn.disabled = false;
+        btn.textContent = '📤 В НК';
+    });
+}
+
+function manualUpdateGtin(productIndex, gtin) {
+    if (!gtin) {
+        alert('GTIN не указан');
+        return;
+    }
+    
+    fetch(`/update_gtin`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+            product_index: productIndex,
+            gtin: gtin 
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showModal('Успех', `
+                <h3>✅ GTIN обновлен</h3>
+                <p>${data.message}</p>
+                <p><strong>GTIN:</strong> <code>${data.gtin}</code></p>
+                ${data.total_barcodes ? `<p><strong>Всего штрихкодов:</strong> ${data.total_barcodes}</p>` : ''}
+            `);
+        } else {
+            showModal('Ошибка', `
+                <h3>❌ Ошибка обновления GTIN</h3>
+                <p>${data.message}</p>
+            `);
+        }
+    })
+    .catch(error => {
+        alert('Ошибка: ' + error);
+    });
+}
+
+function checkFeedStatus(feedId, productIndex = null) {
+    console.log(`🔍 Проверяем статус feed ${feedId}`, productIndex ? `для товара ${productIndex}` : '');
+    
+    fetch(`/check_feed_status/${feedId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let statusContent = `
+                    <h3>📋 Статус Feed ${feedId}</h3>
+                    <p><strong>Статус:</strong> ${data.status}</p>
+                    <p><strong>Создан:</strong> ${data.created_at}</p>
+                `;
+                
+                // Статистика
+                if (data.stats) {
+                    statusContent += `
+                        <h4>📊 Статистика:</h4>
+                        <ul>
+                            <li>Всего товаров: ${data.stats.total}</li>
+                            <li>Обработано: ${data.stats.processed}</li>
+                            <li>Принято: ${data.stats.accepted}</li>
+                            <li>Отклонено: ${data.stats.rejected}</li>
+                        </ul>
+                    `;
                 }
                 
-                // Скрываем dropdown
-                selectElement.style.display = 'none';
-                
-                console.log(`Обновлено поле ${field}: ${newValue}`);
-            }
-        }
-
-        // Можно добавить сохранение изменений в будущем
-        function saveChanges() {
-            // TODO: отправка обновленных данных на сервер
-            console.log('Сохранение изменений...');
-        }
-
-        // Функции для работы с НК
-        function previewCard(productIndex) {
-            fetch(`/nk_preview/${productIndex}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        alert('Ошибка: ' + data.error);
-                        return;
-                    }
+                // GTIN - ОСНОВНАЯ ЛОГИКА
+                if (data.gtin) {
+                    statusContent += `
+                        <div style="background: #d4edda; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #28a745;">
+                            <h4 style="color: #155724;">🏷️ GTIN получен: <code>${data.gtin}</code></h4>
+                        </div>
+                    `;
                     
-                    showModal('Превью карточки для НК', `
-                        <h3>${data.product_data.name}</h3>
-                        <p><strong>Бренд:</strong> ${data.brand}</p>
-                        <p><strong>Категория НК:</strong> ${data.category_id} - ${data.category_name}</p>
-                        <p><strong>ТН ВЭД:</strong> ${data.product_data.tnved}</p>
-                        <p><strong>Вид товара:</strong> ${data.product_data.product_type || 'Не указан'}</p>
-                        <h4>Данные для отправки:</h4>
-                        <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-size: 12px; overflow-x: auto;">${JSON.stringify(data.nk_card_data, null, 2)}</pre>
-                    `);
-                })
-                .catch(error => {
-                    alert('Ошибка: ' + error);
-                });
-        }
+                    // АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ В МОЙСКЛАД
+                    if (productIndex !== null) {
+                        statusContent += `
+                            <div id="ms-update-status" style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ffc107;">
+                                <h4 style="color: #856404;">⏳ Обновляем GTIN в МойСклад...</h4>
+                                <div class="loading-spinner" style="margin: 10px auto; width: 20px; height: 20px;"></div>
+                            </div>
+                        `;
+                        
+                        // Показываем модальное окно сначала
+                        showModal('Статус обработки', statusContent);
+                        
+                        // АВТОМАТИЧЕСКИ обновляем GTIN в МойСклад
+                        console.log(`🔄 Автоматически обновляем GTIN ${data.gtin} для товара ${productIndex}`);
+                        
+                        fetch(`/update_gtin`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 
+                                product_index: productIndex,
+                                gtin: data.gtin 
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(updateResult => {
+                            // Обновляем статус в модальном окне
+                            const msStatusDiv = document.getElementById('ms-update-status');
+                            if (msStatusDiv) {
+                                if (updateResult.success) {
+                                    msStatusDiv.innerHTML = `
+                                        <h4 style="color: #155724;">✅ GTIN обновлен в МойСклад</h4>
+                                        <p style="margin: 5px 0;"><strong>Сообщение:</strong> ${updateResult.message}</p>
+                                        ${updateResult.total_barcodes ? `<p style="margin: 5px 0;"><strong>Всего штрихкодов:</strong> ${updateResult.total_barcodes}</p>` : ''}
+                                    `;
+                                    msStatusDiv.style.background = '#d4edda';
+                                    msStatusDiv.style.borderLeftColor = '#28a745';
+                                } else {
+                                    msStatusDiv.innerHTML = `
+                                        <h4 style="color: #721c24;">❌ Ошибка обновления МойСклад</h4>
+                                        <p style="margin: 5px 0;">${updateResult.message}</p>
+                                        <button onclick="manualUpdateGtin(${productIndex}, '${data.gtin}')" 
+                                                class="action-btn send-btn" style="margin-top: 5px;">
+                                            🔄 Повторить
+                                        </button>
+                                    `;
+                                    msStatusDiv.style.background = '#f8d7da';
+                                    msStatusDiv.style.borderLeftColor = '#dc3545';
+                                }
+                            }
+                            console.log(`✅ Результат автоматического обновления GTIN:`, updateResult);
+                        })
+                        .catch(error => {
+                            console.error('❌ Ошибка автообновления GTIN:', error);
+                            const msStatusDiv = document.getElementById('ms-update-status');
+                            if (msStatusDiv) {
+                                msStatusDiv.innerHTML = `
+                                    <h4 style="color: #721c24;">❌ Ошибка сети</h4>
+                                    <p>Не удалось обновить GTIN: ${error}</p>
+                                `;
+                                msStatusDiv.style.background = '#f8d7da';
+                                msStatusDiv.style.borderLeftColor = '#dc3545';
+                            }
+                        });
+                        
+                        return; // Выходим, так как модальное окно уже показано
+                    }
+                } else {
+                    statusContent += `
+                        <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ffc107;">
+                            <p style="margin: 0; color: #856404;">⚠️ GTIN пока не получен. Карточка еще обрабатывается.</p>
+                        </div>
+                    `;
+                }
+                
+                // Ошибки
+                if (data.errors && data.errors.length > 0) {
+                    statusContent += `
+                        <h4>❌ Ошибки:</h4>
+                        <div style="background: #f8d7da; padding: 10px; border-radius: 5px;">
+                            <ul>
+                                ${data.errors.map(error => `<li>${error.message || error}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                statusContent += `
+                    <button onclick="checkFeedStatus('${feedId}', ${productIndex})" class="action-btn preview-btn" style="margin-top: 10px;">
+                        🔄 Обновить статус
+                    </button>
+                `;
+                
+                showModal('Статус обработки', statusContent);
+            } else {
+                showModal('Ошибка', `
+                    <h3>❌ Не удалось получить статус</h3>
+                    <p>${data.error}</p>
+                `);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка проверки статуса:', error);
+            alert('Ошибка: ' + error);
+        });
+}
 
-        function sendToNK(productIndex) {
-            if (!confirm('Отправить товар в Национальный каталог?')) {
+// ===============================================
+// ОТЛАДОЧНЫЕ ФУНКЦИИ
+// ===============================================
+
+function debugProduct(productIndex) {
+    console.log(`🔍 Отлаживаем товар с индексом: ${productIndex}`);
+    
+    fetch(`/debug_product/${productIndex}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('❌ Ошибка отладки:', data.error);
+                showModal('Ошибка отладки', `
+                    <h3>❌ Ошибка</h3>
+                    <p>${data.error}</p>
+                    <pre>${data.traceback || ''}</pre>
+                `);
                 return;
             }
             
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = '⏳ Отправка...';
+            let debugContent = `
+                <h3>🔍 Отладочная информация</h3>
+                <p><strong>Индекс:</strong> ${data.index}</p>
+                <p><strong>Тип:</strong> ${data.item_raw.type} ${data.is_variant ? '(вариант)' : '(товар)'}</p>
+                <p><strong>ID:</strong> ${data.item_raw.id}</p>
+                <p><strong>Название:</strong> ${data.item_raw.name}</p>
+                <p><strong>Артикул:</strong> ${data.item_raw.article || 'Не указан'}</p>
+                <p><strong>ТН ВЭД:</strong> ${data.processed_data.tnved || 'Не указан'}</p>
+                <p><strong>Существующих штрихкодов:</strong> ${data.item_raw.barcodes_count}</p>
+                
+                ${data.item_raw.existing_barcodes.length > 0 ? `
+                    <h4>📋 Текущие штрихкоды:</h4>
+                    <ul>
+                        ${data.item_raw.existing_barcodes.map(bc => `<li><code>${JSON.stringify(bc)}</code></li>`).join('')}
+                    </ul>
+                ` : '<p><em>Штрихкодов нет</em></p>'}
+                
+                ${data.parent_info ? `
+                    <h4>👨‍👦 Родительский товар:</h4>
+                    <p><strong>ID:</strong> ${data.parent_info.id}</p>
+                    <p><strong>Название:</strong> ${data.parent_info.name}</p>
+                    <p><strong>Штрихкодов у родителя:</strong> ${data.parent_info.barcodes_count}</p>
+                ` : ''}
+                
+                <div style="margin-top: 15px;">
+                    <button onclick="testManualGtin(${data.index})" class="action-btn send-btn">
+                        🧪 Тест обновления GTIN
+                    </button>
+                </div>
+            `;
             
-            fetch(`/send_to_nk/${productIndex}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showModal('Успешная отправка', `
-                        <h3>✅ Карточка отправлена</h3>
-                        <p><strong>Товар:</strong> ${data.product_name}</p>
-                        <p><strong>Feed ID:</strong> ${data.feed_id}</p>
-                        <button onclick="checkFeedStatus('${data.feed_id}')" class="action-btn send-btn">Проверить статус</button>
-                    `);
-                    btn.textContent = '✅ Отправлено';
-                    btn.style.background = '#6c757d';
-                } else {
-                    showModal('Ошибка отправки', `
-                        <h3>❌ Ошибка</h3>
-                        <p>${data.error}</p>
-                        ${data.status_code ? `<p><strong>Код:</strong> ${data.status_code}</p>` : ''}
-                    `);
-                    btn.disabled = false;
-                    btn.textContent = '📤 В НК';
-                }
-            })
-            .catch(error => {
-                alert('Ошибка: ' + error);
-                btn.disabled = false;
-                btn.textContent = '📤 В НК';
-            });
-        }
+            showModal(`Отладка товара ${data.index}`, debugContent);
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            alert('Ошибка отладки: ' + error);
+        });
+}
 
-        function checkFeedStatus(feedId) {
-            fetch(`/check_feed_status/${feedId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const feedData = data.data.result;
-                        showModal('Статус обработки', `
-                            <h3>📋 Статус Feed ${feedId}</h3>
-                            <p><strong>Статус:</strong> ${feedData.status}</p>
-                            <p><strong>Создан:</strong> ${new Date(feedData.created_at).toLocaleString('ru-RU')}</p>
-                            ${feedData.updated_at ? `<p><strong>Обновлен:</strong> ${new Date(feedData.updated_at).toLocaleString('ru-RU')}</p>` : ''}
-                            ${feedData.errors ? `
-                                <h4>Ошибки:</h4>
-                                <pre style="background: #f8d7da; padding: 10px; border-radius: 5px; font-size: 12px;">${JSON.stringify(feedData.errors, null, 2)}</pre>
-                            ` : ''}
-                            ${feedData.warnings ? `
-                                <h4>Предупреждения:</h4>
-                                <pre style="background: #fff3cd; padding: 10px; border-radius: 5px; font-size: 12px;">${JSON.stringify(feedData.warnings, null, 2)}</pre>
-                            ` : ''}
-                            <button onclick="checkFeedStatus('${feedId}')" class="action-btn preview-btn" style="margin-top: 10px;">🔄 Обновить статус</button>
-                        `);
-                    } else {
-                        showModal('Ошибка', `
-                            <h3>❌ Не удалось получить статус</h3>
-                            <p>${data.error}</p>
-                        `);
-                    }
-                })
-                .catch(error => {
-                    alert('Ошибка: ' + error);
-                });
+function testManualGtin(productIndex) {
+    const testGtin = prompt('Введите тестовый GTIN для проверки обновления:');
+    if (!testGtin) return;
+    
+    // Показываем, как будет выглядеть форматированный GTIN
+    const cleanGtin = testGtin.replace(/\D/g, ''); // убираем нецифровые символы
+    const formattedGtin = cleanGtin.padStart(14, '0'); // дополняем до 14 цифр
+    
+    const confirmMessage = `Проверьте GTIN:\n\nИсходный: ${testGtin}\nОчищенный: ${cleanGtin}\nДля МойСклад: ${formattedGtin}\n\nПродолжить?`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    console.log(`🧪 Тестируем обновление GTIN:`);
+    console.log(`   Товар: ${productIndex}`);
+    console.log(`   Исходный GTIN: ${testGtin}`);
+    console.log(`   Очищенный: ${cleanGtin}`);
+    console.log(`   Форматированный: ${formattedGtin}`);
+    
+    // Показываем индикатор загрузки
+    const modal = document.getElementById('modal');
+    modal.style.display = 'block';
+    document.getElementById('modal-title').textContent = '🧪 Тестируем GTIN...';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+            <div class="loading-spinner" style="margin: 20px auto;"></div>
+            <p>Отправляем GTIN в МойСклад...</p>
+            <p><strong>Исходный:</strong> <code>${testGtin}</code></p>
+            <p><strong>Форматированный:</strong> <code>${formattedGtin}</code></p>
+        </div>
+    `;
+    
+    fetch(`/update_gtin`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+            product_index: productIndex,
+            gtin: testGtin 
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('🧪 Результат теста:', data);
+        
+        if (data.success) {
+            showModal('✅ Тест успешен', `
+                <h3>✅ GTIN успешно обновлен</h3>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                    <p><strong>📝 Исходный GTIN:</strong> <code>${testGtin}</code></p>
+                    <p><strong>📋 Сохранен в МС как:</strong> <code>${data.gtin}</code></p>
+                    <p><strong>💬 Сообщение:</strong> ${data.message}</p>
+                    ${data.total_barcodes ? `<p><strong>📊 Всего штрихкодов:</strong> ${data.total_barcodes}</p>` : ''}
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <button onclick="debugProduct(${productIndex})" class="action-btn preview-btn">
+                        🔄 Обновить отладку
+                    </button>
+                </div>
+            `);
+        } else {
+            showModal('❌ Тест не прошел', `
+                <h3>❌ Ошибка обновления GTIN</h3>
+                <div style="background: #fff5f5; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #e53e3e;">
+                    <p><strong>📝 Пытались обновить:</strong> <code>${testGtin}</code></p>
+                    <p><strong>🔥 Ошибка:</strong> ${data.message}</p>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <button onclick="debugProduct(${productIndex})" class="action-btn preview-btn">
+                        🔍 Посмотреть отладку
+                    </button>
+                </div>
+            `);
         }
-    </script>
+    })
+    .catch(error => {
+        console.error('Ошибка теста:', error);
+        showModal('❌ Ошибка запроса', `
+            <h3>❌ Ошибка сети</h3>
+            <p>Не удалось отправить запрос: ${error}</p>
+            <button onclick="closeModal()" class="action-btn">Закрыть</button>
+        `);
+    });
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Система отслеживания изменений инициализирована');
+    console.log('💾 Объект userChanges:', window.userChanges);
+});
+
+</script>
 </body>
 </html>
