@@ -1458,4 +1458,3 @@ def send_product_to_nk(product_index):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
