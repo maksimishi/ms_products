@@ -447,8 +447,6 @@ class MoySkladAPI:
         
         return data
     
-    # В вашем app.py найдите конец класса MoySkladAPI (после метода extract_item_data_with_inheritance)
-# и ЗАМЕНИТЕ все от строки "# Добавьте эти исправленные методы..." до "# Создаем экземпляр API" на это:
 
     def format_gtin_for_moysklad(self, gtin):
         """
@@ -465,8 +463,6 @@ class MoySkladAPI:
         
         print(f"🔢 Форматирование GTIN: '{gtin}' -> '{formatted_gtin}'")
         return formatted_gtin
-
-    # В app.py замените начало метода update_product_gtin на это:
 
     def update_product_gtin(self, product_id, new_gtin, is_variant=False):
         """
@@ -646,10 +642,7 @@ class MoySkladAPI:
             items = assortment_data.get('rows', [])
             print(f"   📦 Всего товаров из API: {len(items)}")
             
-            catalog_items = self.filter_for_national_catalog(items)
-            print(f"   🏷️  Товаров с галочкой: {len(catalog_items)}")
-            
-            filtered_items = self.process_products_and_variants(catalog_items)
+            filtered_items = self.process_products_and_variants(items)
             print(f"   ✅ Финальный список: {len(filtered_items)}")
             
             # ПРОВЕРЯЕМ ИНДЕКС
@@ -735,11 +728,7 @@ class MoySkladAPI:
             items = assortment_data.get('rows', [])
             print(f"   📦 Всего товаров из API: {len(items)}")
             
-            # ВАЖНО: Используем ту же последовательность фильтрации, что и в send_product_to_nk
-            catalog_items = self.filter_for_national_catalog(items)
-            print(f"   🏷️  Товаров с галочкой 'Для нац.каталога': {len(catalog_items)}")
-            
-            filtered_items = self.process_products_and_variants(catalog_items)
+            filtered_items = self.process_products_and_variants(items)
             print(f"   ✅ Финальный список для отображения: {len(filtered_items)}")
 
             if product_index >= len(filtered_items):
@@ -964,8 +953,7 @@ def api_products():
             return jsonify({'error': 'Ошибка при загрузке данных из МойСклад'}), 500
         
         items = assortment_data.get('rows', [])
-        catalog_items = api.filter_for_national_catalog(items)
-        filtered_items = api.process_products_and_variants(catalog_items)
+        filtered_items = api.process_products_and_variants(items)
         
         products = []
         for item in filtered_items:
@@ -1028,8 +1016,7 @@ def update_gtin():
             return jsonify({'success': False, 'message': 'Не удалось загрузить данные'})
 
         items = assortment_data.get('rows', [])
-        catalog_items = api.filter_for_national_catalog(items)
-        filtered_items = api.process_products_and_variants(catalog_items)
+        filtered_items = api.process_products_and_variants(items)
 
         if product_index >= len(filtered_items):
             return jsonify({'success': False, 'message': f'Товар с индексом {product_index} не найден'})
@@ -1151,8 +1138,6 @@ def debug_categories(tnved):
         return jsonify({"error": str(e)}), 500
     
 
-# Добавьте этот новый маршрут в app.py для отладки
-
 @app.route('/debug_product/<int:product_index>')
 def debug_product_by_index(product_index):
     """Отладочный маршрут для проверки товара по индексу"""
@@ -1217,8 +1202,6 @@ def debug_product_by_index(product_index):
 
 
 
-# Добавьте эти обновленные роуты в app.py:
-
 def apply_user_changes(product_data, user_changes):
     """Применяет пользовательские изменения к данным товара"""
     if not user_changes:
@@ -1255,8 +1238,7 @@ def preview_nk_card(product_index):
             return jsonify({'error': 'Не удалось загрузить данные'})
         
         items = assortment_data.get('rows', [])
-        catalog_items = api.filter_for_national_catalog(items)
-        filtered_items = api.process_products_and_variants(catalog_items)
+        filtered_items = api.process_products_and_variants(items)
         
         if product_index >= len(filtered_items):
             return jsonify({'error': 'Товар не найден'})
@@ -1324,12 +1306,8 @@ def send_product_to_nk(product_index):
         items = assortment_data.get('rows', [])
         print(f"📦 Всего товаров из API: {len(items)}")
         
-        # Фильтруем товары с галочкой "Для нац.каталога"
-        catalog_items = api.filter_for_national_catalog(items)
-        print(f"🏷️  Товаров с галочкой: {len(catalog_items)}")
-        
         # Обрабатываем товары и варианты
-        filtered_items = api.process_products_and_variants(catalog_items)
+        filtered_items = api.process_products_and_variants(items)
         print(f"✅ Финальный список для отправки: {len(filtered_items)}")
 
         if product_index >= len(filtered_items):
@@ -1480,3 +1458,4 @@ def send_product_to_nk(product_index):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
