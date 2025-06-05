@@ -517,7 +517,6 @@ class MoySkladAPI:
             for i, barcode in enumerate(existing_barcodes):
                 print(f"     [{i}] {barcode}")
             
-            # ... остальная часть метода остается без изменений
             
             # Проверяем, нет ли уже такого GTIN (сравниваем форматированные версии)
             gtin_exists = any(
