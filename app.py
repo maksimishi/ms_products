@@ -464,8 +464,6 @@ class MoySkladAPI:
         print(f"🔢 Форматирование GTIN: '{gtin}' -> '{formatted_gtin}'")
         return formatted_gtin
 
-    # В app.py замените начало метода update_product_gtin на это:
-
     def update_product_gtin(self, product_id, new_gtin, is_variant=False):
         """
         Обновляет GTIN товара или варианта, сохраняя существующие штрихкоды
