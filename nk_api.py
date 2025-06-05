@@ -292,13 +292,16 @@ def create_card_data(product_data: dict, cat_id: int | None = None) -> dict:
     attrs.append({"attr_id": 2504,
                   "attr_value": product_data.get("brand_nk") or "БрендОдежды"})
 
-    # ✔ группа ТН ВЭД (всегда 4 знака)
+    # ✔ группа ТН ВЭД и детальный код
     if tnved := product_data.get("tnved"):
-        attrs.append({"attr_id": 3959, "attr_value": tnved[:4]})
-
-        # детальный код (если 10-значный)
-        if len(tnved) == 10:
-            attrs.append({"attr_id": 13933, "attr_value": tnved})
+        # Если в карточке используется 4-значный код,
+        # передаем его только в поле tnved, а детальный
+        # 10-значный указываем в атрибуте 13933
+        if len(tnved_for_card) == 4:
+            if len(tnved) == 10:
+                attrs.append({"attr_id": 13933, "attr_value": tnved})
+        # Если в карточке используется 10-значный код,
+        # атрибуты 3959 и 13933 не заполняем
 
     # ✔ вид товара
     if ptype := product_data.get("product_type"):
