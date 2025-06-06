@@ -870,9 +870,10 @@ def create_custom_fields_route():
         if field_name:
             success = api.create_custom_field(field_name)
             return jsonify({"created": [field_name] if success else []})
-=======
+
     """Создает отсутствующие пользовательские атрибуты"""
     try:
+
         created = api.create_missing_custom_fields()
         return jsonify({"created": created})
     except Exception as e:

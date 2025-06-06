@@ -1030,7 +1030,7 @@ function checkCustomFields() {
             }
 
             showModal('Дополнительные поля', list);
-=======
+
             const existing = data.existing || [];
             const missing = data.missing || [];
             let msg = `Существующие поля: ${existing.length ? existing.join(', ') : 'нет'}\n`;
@@ -1048,7 +1048,6 @@ function checkCustomFields() {
             } else {
                 alert(msg + 'Все необходимые поля уже созданы');
             }
-
         })
         .catch(err => alert('Ошибка: ' + err));
 }
@@ -1069,6 +1068,22 @@ function createField(name, btn) {
             }
         })
         .catch(err => alert('Ошибка: ' + err));
+
+
+function createAllFields() {
+    fetch('/custom_fields/create', {method: 'POST'})
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.created) {
+                checkCustomFields();
+            } else if (data.error) {
+                alert('Ошибка: ' + data.error);
+            }
+        })
+        .catch(err => alert('Ошибка: ' + err));
+}
+
+=======
 }
 =======
 
