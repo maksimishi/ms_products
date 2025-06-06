@@ -194,7 +194,6 @@ class MoySkladAPI:
             return True
         return False
 
-    
     def filter_for_national_catalog(self, items):
         """Фильтрует товары по флажку 'Для нац.каталога'"""
         filtered_items = []
@@ -875,6 +874,7 @@ def create_custom_fields_route():
 
     """Создает отсутствующие пользовательские атрибуты"""
     try:
+
         created = api.create_missing_custom_fields()
         return jsonify({"created": created})
     except Exception as e:
