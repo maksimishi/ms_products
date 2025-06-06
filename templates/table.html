@@ -1013,6 +1013,21 @@ function checkCustomFields() {
                 alert('Ошибка: ' + data.error);
                 return;
             }
+
+            const existingFieldNames = data.existing || [];
+            const missingFieldNames = data.missing || [];
+
+            let list = '<ul style="list-style:none;padding:0">';
+            existingFieldNames.forEach(name => {
+                list += `<li>${name} - <span style="color:green">создано</span></li>`;
+            });
+            missingFieldNames.forEach(name => {
+                list += `<li>${name} - <button class="action-btn preview-btn" onclick="createField('${name}', this)">Создать</button></li>`;
+            });
+            list += '</ul>';
+
+            if (missingFieldNames.length > 0) {
+
             const existingFields = data.existing || [];
             const missingFields = data.missing || [];
 
@@ -1037,10 +1052,12 @@ function checkCustomFields() {
             if (missing.length > 0) {
 
 
+
                 list += `<div style="margin-top:10px;"><button class="action-btn send-btn" onclick="createAllFields()">Создать все</button></div>`;
             }
 
             showModal('Дополнительные поля', list);
+
 
 
             const existing = data.existing || [];
@@ -1060,6 +1077,7 @@ function checkCustomFields() {
             } else {
                 alert(msg + 'Все необходимые поля уже созданы');
             }
+
 
 
         })
@@ -1085,6 +1103,7 @@ function createField(name, btn) {
 
 
 
+
 function createAllFields() {
     fetch('/custom_fields/create', {method: 'POST'})
         .then(resp => resp.json())
@@ -1097,6 +1116,7 @@ function createAllFields() {
         })
         .catch(err => alert('Ошибка: ' + err));
 }
+
 
 
 
