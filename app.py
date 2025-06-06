@@ -175,6 +175,7 @@ class MoySkladAPI:
                 created.append(name)
         return created
 
+
     def create_custom_field(self, name):
         """Создает одно пользовательское поле"""
         if name not in REQUIRED_CUSTOM_FIELDS:
@@ -192,7 +193,7 @@ class MoySkladAPI:
         if resp.status_code in (200, 201):
             return True
         return False
-    
+
     def filter_for_national_catalog(self, items):
         """Фильтрует товары по флажку 'Для нац.каталога'"""
         filtered_items = []
@@ -870,6 +871,10 @@ def create_custom_fields_route():
         if field_name:
             success = api.create_custom_field(field_name)
             return jsonify({"created": [field_name] if success else []})
+
+    """Создает отсутствующие пользовательские атрибуты"""
+    try:
+
         created = api.create_missing_custom_fields()
         return jsonify({"created": created})
     except Exception as e:
