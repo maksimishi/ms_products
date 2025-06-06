@@ -248,11 +248,11 @@ class MoySkladAPI:
         
         # Результирующий список
         result_items = []
-        
+
         # Обрабатываем каждый товар с галочкой
         for product in products_with_flag:
             product_id = product.get('id')
-            
+
             # Ищем варианты этого товара
             product_variants = []
             for item in items:
@@ -265,13 +265,16 @@ class MoySkladAPI:
                             # Добавляем ссылку на родительский товар
                             item['_parent_product'] = product
                             product_variants.append(item)
-            
+
             if len(product_variants) == 0:
                 # Товар без вариантов - добавляем сам товар
                 result_items.append(product)
                 print(f"  ➜ Добавлен товар без вариантов: {product.get('name')}")
             else:
-                # Товар с вариантами - добавляем все его варианты
+                # Товар с вариантами - сначала добавляем сам товар,
+                # чтобы пользователь мог отправить основную карточку,
+                # затем перечисляем все варианты
+                result_items.append(product)
                 print(f"  ➜ Товар '{product.get('name')}' имеет {len(product_variants)} вариантов")
                 for variant in product_variants:
                     result_items.append(variant)
@@ -862,7 +865,6 @@ def check_custom_fields_route():
 
 @app.route('/custom_fields/create', methods=['POST'])
 def create_custom_fields_route():
-
     """Создает пользовательские атрибуты"""
     try:
         data = request.get_json(silent=True) or {}
@@ -873,6 +875,7 @@ def create_custom_fields_route():
 
     """Создает отсутствующие пользовательские атрибуты"""
     try:
+
 
         created = api.create_missing_custom_fields()
         return jsonify({"created": created})

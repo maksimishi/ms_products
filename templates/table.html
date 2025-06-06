@@ -1013,6 +1013,15 @@ function checkCustomFields() {
                 alert('Ошибка: ' + data.error);
                 return;
             }
+
+            const existingFields = data.existing || [];
+            const missingFields = data.missing || [];
+
+            let list = '<ul style="list-style:none;padding:0">';
+            existingFields.forEach(name => {
+                list += `<li>${name} - <span style="color:green">создано</span></li>`;
+            });
+            missingFields.forEach(name => {
             const existing = data.existing || [];
             const missing = data.missing || [];
 
@@ -1025,7 +1034,11 @@ function checkCustomFields() {
             });
             list += '</ul>';
 
+
+            if (missingFields.length > 0) {
+
             if (missing.length > 0) {
+
                 list += `<div style="margin-top:10px;"><button class="action-btn send-btn" onclick="createAllFields()">Создать все</button></div>`;
             }
 
@@ -1048,6 +1061,7 @@ function checkCustomFields() {
             } else {
                 alert(msg + 'Все необходимые поля уже созданы');
             }
+
         })
         .catch(err => alert('Ошибка: ' + err));
 }
@@ -1070,6 +1084,7 @@ function createField(name, btn) {
         .catch(err => alert('Ошибка: ' + err));
 
 
+
 function createAllFields() {
     fetch('/custom_fields/create', {method: 'POST'})
         .then(resp => resp.json())
@@ -1083,10 +1098,8 @@ function createAllFields() {
         .catch(err => alert('Ошибка: ' + err));
 }
 
-=======
-}
-=======
 
+}
 
 function createAllFields() {
     fetch('/custom_fields/create', {method: 'POST'})
