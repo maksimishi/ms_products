@@ -2,7 +2,14 @@ from flask import Flask, render_template, jsonify, request
 import requests
 import os
 from dotenv import load_dotenv
-from config import CUSTOM_ATTRIBUTES, CHARACTERISTICS, API_SETTINGS, CATEGORIES_WITH_FULL_TNVED, TNVED_DETAILED_ATTR_ID
+from config import (
+    CUSTOM_ATTRIBUTES,
+    CHARACTERISTICS,
+    API_SETTINGS,
+    CATEGORIES_WITH_FULL_TNVED,
+    TNVED_DETAILED_ATTR_ID,
+    REQUIRED_CUSTOM_FIELDS,
+)
 from nk_api import (
     validate_color, validate_product_kind, find_similar_values,
     get_color_preset, get_kind_preset, determine_category_for_tnved,
@@ -114,6 +121,59 @@ class MoySkladAPI:
         
         print(f"Всего загружено товаров: {len(all_items)}")
         return {'rows': all_items}
+
+    # ------------------------------------------------------------------
+    # Работа с дополнительными полями
+    # ------------------------------------------------------------------
+
+    def get_product_attributes(self):
+        """Возвращает все пользовательские атрибуты товаров"""
+        url = f"{self.base_url}/entity/product/metadata/attributes"
+        resp = requests.get(url, headers=self.headers, timeout=self.timeout)
+        resp.raise_for_status()
+        return resp.json().get("rows", [])
+
+    def check_missing_custom_fields(self):
+        """Список обязательных атрибутов, которых нет в системе"""
+        existing = {attr.get("name") for attr in self.get_product_attributes()}
+        return [name for name in REQUIRED_CUSTOM_FIELDS if name not in existing]
+
+    def _create_custom_entity(self, name, values):
+        """Создает пользовательский справочник и значения"""
+        url = f"{self.base_url}/entity/customentity"
+        resp = requests.post(url, headers=self.headers, json={"name": name}, timeout=self.timeout)
+        resp.raise_for_status()
+        entity = resp.json()
+        ce_id = entity.get("id")
+        if ce_id and values:
+            for val in values:
+                requests.post(f"{url}/{ce_id}", headers=self.headers, json={"name": val}, timeout=self.timeout)
+
+        return {
+            "href": f"{self.base_url}/entity/customentity/{ce_id}/metadata",
+            "type": "customentitymetadata",
+            "mediaType": "application/json"
+        }
+
+    def create_missing_custom_fields(self):
+        """Создает недостающие пользовательские поля"""
+        missing = self.check_missing_custom_fields()
+        created = []
+        for name in missing:
+            spec = REQUIRED_CUSTOM_FIELDS[name]
+            if spec["type"] == "customentity":
+                meta = self._create_custom_entity(name, spec.get("values", []))
+                payload = {"name": name, "type": "customentity", "required": False, "customEntityMeta": meta}
+            elif spec["type"] == "boolean":
+                payload = {"name": name, "type": "boolean", "required": False}
+            else:
+                payload = {"name": name, "type": "string", "required": False}
+
+            url = f"{self.base_url}/entity/product/metadata/attributes"
+            resp = requests.post(url, headers=self.headers, json=payload, timeout=self.timeout)
+            if resp.status_code in (200, 201):
+                created.append(name)
+        return created
     
     def filter_for_national_catalog(self, items):
         """Фильтрует товары по флажку 'Для нац.каталога'"""
@@ -274,7 +334,8 @@ class MoySkladAPI:
             'size': '',
             'product_type': '',
             'tnved': '',
-            'target_gender': '',  # Добавляем поле для целевого пола
+            'target_gender': '',
+            'size_type': '',
             'item_type': item_type,
             # Новые поля для валидации НК
             'color_valid': False,
@@ -324,6 +385,15 @@ class MoySkladAPI:
             data['target_gender'] = parent_attributes[target_gender_attr]
         else:
             data['target_gender'] = ''
+
+        # Вид размера: сначала вариант, потом родитель
+        size_type_attr = 'Вид размера'
+        if size_type_attr in current_attributes and current_attributes[size_type_attr]:
+            data['size_type'] = current_attributes[size_type_attr]
+        elif size_type_attr in parent_attributes:
+            data['size_type'] = parent_attributes[size_type_attr]
+        else:
+            data['size_type'] = ''
         
         # Заполняем данные с логикой наследования
         
@@ -416,7 +486,7 @@ class MoySkladAPI:
             data['size'] = parent_attributes[size_attr]
         
         # Очищаем пустые строки
-        for key in ['name', 'article', 'composition', 'permit_docs', 'color', 'size', 'product_type', 'tnved']:
+        for key in ['name', 'article', 'composition', 'permit_docs', 'color', 'size', 'product_type', 'tnved', 'size_type', 'target_gender']:
             if data[key] in ['None', '', 'nan', 'Нет']:
                 data[key] = ''
         
@@ -447,8 +517,6 @@ class MoySkladAPI:
         
         return data
     
-    # В вашем app.py найдите конец класса MoySkladAPI (после метода extract_item_data_with_inheritance)
-# и ЗАМЕНИТЕ все от строки "# Добавьте эти исправленные методы..." до "# Создаем экземпляр API" на это:
 
     def format_gtin_for_moysklad(self, gtin):
         """
@@ -465,8 +533,6 @@ class MoySkladAPI:
         
         print(f"🔢 Форматирование GTIN: '{gtin}' -> '{formatted_gtin}'")
         return formatted_gtin
-
-    # В app.py замените начало метода update_product_gtin на это:
 
     def update_product_gtin(self, product_id, new_gtin, is_variant=False):
         """
@@ -521,7 +587,6 @@ class MoySkladAPI:
             for i, barcode in enumerate(existing_barcodes):
                 print(f"     [{i}] {barcode}")
             
-            # ... остальная часть метода остается без изменений
             
             # Проверяем, нет ли уже такого GTIN (сравниваем форматированные версии)
             gtin_exists = any(
@@ -646,10 +711,7 @@ class MoySkladAPI:
             items = assortment_data.get('rows', [])
             print(f"   📦 Всего товаров из API: {len(items)}")
             
-            catalog_items = self.filter_for_national_catalog(items)
-            print(f"   🏷️  Товаров с галочкой: {len(catalog_items)}")
-            
-            filtered_items = self.process_products_and_variants(catalog_items)
+            filtered_items = self.process_products_and_variants(items)
             print(f"   ✅ Финальный список: {len(filtered_items)}")
             
             # ПРОВЕРЯЕМ ИНДЕКС
@@ -735,11 +797,7 @@ class MoySkladAPI:
             items = assortment_data.get('rows', [])
             print(f"   📦 Всего товаров из API: {len(items)}")
             
-            # ВАЖНО: Используем ту же последовательность фильтрации, что и в send_product_to_nk
-            catalog_items = self.filter_for_national_catalog(items)
-            print(f"   🏷️  Товаров с галочкой 'Для нац.каталога': {len(catalog_items)}")
-            
-            filtered_items = self.process_products_and_variants(catalog_items)
+            filtered_items = self.process_products_and_variants(items)
             print(f"   ✅ Финальный список для отображения: {len(filtered_items)}")
 
             if product_index >= len(filtered_items):
@@ -769,6 +827,27 @@ class MoySkladAPI:
 
 # Создаем экземпляр API
 api = MoySkladAPI()
+
+
+@app.route('/custom_fields/check')
+def check_custom_fields_route():
+    """Возвращает существующие и отсутствующие пользовательские атрибуты"""
+    try:
+        existing = [attr.get("name") for attr in api.get_product_attributes()]
+        missing = api.check_missing_custom_fields()
+        return jsonify({"existing": existing, "missing": missing})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route('/custom_fields/create', methods=['POST'])
+def create_custom_fields_route():
+    """Создает отсутствующие пользовательские атрибуты"""
+    try:
+        created = api.create_missing_custom_fields()
+        return jsonify({"created": created})
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 @app.route('/')
 def index():
@@ -805,154 +884,8 @@ def index():
         traceback.print_exc()
         return render_template('error.html', message=f"Внутренняя ошибка: {str(e)}")
 
-@app.route('/test')
-def test_api():
-    """Тестирование подключения к API"""
-    if not api.token:
-        return jsonify({'error': 'Токен не найден в .env файле', 'token_present': False})
-    
-    # Проверяем соединение
-    connection_ok = api.test_connection()
-    
-    if connection_ok:
-        # Пробуем получить небольшое количество данных
-        test_data = api.get_assortment(limit=5)
-        if test_data:
-            return jsonify({
-                'status': 'success',
-                'token_present': True,
-                'connection': 'ok',
-                'sample_count': len(test_data.get('rows', [])),
-                'sample_items': [item.get('name', 'Без названия') for item in test_data.get('rows', [])]
-            })
-    
-    return jsonify({
-        'status': 'error',
-        'token_present': True,
-        'connection': 'failed',
-        'token_preview': f"{api.token[:10]}..." if api.token else None
-    })
 
-@app.route('/analyze')
-def analyze_structure():
-    """Анализ структуры товаров и вариантов"""
-    try:
-        print("Анализируем структуру товаров...")
-        assortment_data = api.get_assortment(limit=50)
-        
-        if not assortment_data:
-            return jsonify({'error': 'Ошибка при загрузке данных'})
-        
-        items = assortment_data.get('rows', [])
-        
-        analysis = {
-            'products': [],
-            'variants': [],
-            'bundles': [],
-            'services': []
-        }
-        
-        for item in items:
-            item_type = item.get('meta', {}).get('type', 'unknown')
-            item_info = {
-                'name': item.get('name'),
-                'type': item_type,
-                'article': item.get('article'),
-                'tnved': item.get('tnved'),  # Добавляем ТН ВЭД
-                'categories': item.get('categories', []),  # Добавляем категории
-                'has_variants': 'variantsCount' in item,
-                'variants_count': item.get('variantsCount', 0)
-            }
-            
-            # Для вариантов ищем ссылку на основной товар
-            if item_type == 'variant':
-                product_ref = item.get('product')
-                if product_ref:
-                    item_info['parent_product'] = {
-                        'href': product_ref.get('meta', {}).get('href'),
-                        'name': product_ref.get('name')
-                    }
-                
-                # Характеристики варианта
-                characteristics = item.get('characteristics', [])
-                item_info['characteristics'] = [
-                    {'name': char.get('name'), 'value': char.get('value')} 
-                    for char in characteristics
-                ]
-            
-            # Проверяем флажок "Для нац.каталога"
-            for attr in item.get('attributes', []):
-                if attr.get('name') == 'Для нац.каталога':
-                    item_info['national_catalog'] = attr.get('value')
-                    break
-            
-            # Добавляем информацию о ТН ВЭД из атрибутов
-            for attr in item.get('attributes', []):
-                attr_id = attr.get('attr_id')
-                if attr_id == 3959:  # Группа ТН ВЭД
-                    item_info['tnved_group'] = attr.get('value')
-                elif attr_id == TNVED_DETAILED_ATTR_ID:  # Детальный ТН ВЭД
-                    item_info['tnved_detailed'] = attr.get('value')
-            
-            # Определяем извлеченный ТН ВЭД
-            item_info['extracted_tnved'] = api.extract_tnved(item)
-            
-            # Сортируем по типам
-            if item_type == 'product':
-                analysis['products'].append(item_info)
-            elif item_type == 'variant':
-                analysis['variants'].append(item_info)
-            elif item_type == 'bundle':
-                analysis['bundles'].append(item_info)
-            elif item_type == 'service':
-                analysis['services'].append(item_info)
-        
-        return jsonify(analysis)
-        
-    except Exception as e:
-        print(f"Ошибка анализа: {e}")
-        return jsonify({'error': str(e)})
 
-@app.route('/all')
-def show_all():
-    """Показать все товары без фильтрации (для отладки)"""
-    try:
-        print("Загружаем все товары...")
-        assortment_data = api.get_assortment(limit=20)  # Берем только 20 для быстрой проверки
-        
-        if not assortment_data:
-            return render_template('error.html', message="Ошибка при загрузке данных")
-        
-        items = assortment_data.get('rows', [])
-        
-        # Обрабатываем все товары без фильтрации
-        products = []
-        for item in items:
-            product_data = api.extract_item_data_with_inheritance(item)
-            
-            # Добавляем информацию о флажке "Для нац.каталога"
-            national_catalog_value = None
-            for attr in item.get('attributes', []):
-                if attr.get('name') == 'Для нац.каталога':
-                    national_catalog_value = attr.get('value')
-                    break
-            
-            product_data['national_catalog'] = national_catalog_value
-            product_data['attributes_count'] = len(item.get('attributes', []))
-            products.append(product_data)
-        
-        # Используем существующий шаблон index.html
-        return render_template('index.html', 
-                             products=products, 
-                             total_items=len(items),
-                             debug_mode=True,
-                             page_title="Отладка - все товары без фильтрации")
-        
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        import traceback
-        traceback.print_exc()
-        return render_template('error.html', message=f"Ошибка: {str(e)}")
 
 @app.route('/api/products')
 def api_products():
@@ -964,8 +897,7 @@ def api_products():
             return jsonify({'error': 'Ошибка при загрузке данных из МойСклад'}), 500
         
         items = assortment_data.get('rows', [])
-        catalog_items = api.filter_for_national_catalog(items)
-        filtered_items = api.process_products_and_variants(catalog_items)
+        filtered_items = api.process_products_and_variants(items)
         
         products = []
         for item in filtered_items:
@@ -979,29 +911,6 @@ def api_products():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@app.route('/debug')
-def debug():
-    """Отладочная страница для проверки структуры данных"""
-    assortment_data = api.get_assortment(limit=5)  # Берем только первые 5 для отладки
-    
-    if not assortment_data:
-        return jsonify({'error': 'Ошибка при загрузке данных'})
-    
-    items = assortment_data.get('rows', [])
-    
-    debug_info = []
-    for item in items[:3]:  # Показываем только первые 3
-        debug_data = {
-            'name': item.get('name'),
-            'type': item.get('meta', {}).get('type'),
-            'attributes': [{'name': attr.get('name'), 'value': attr.get('value')} for attr in item.get('attributes', [])],
-            'characteristics': [{'name': char.get('name'), 'value': char.get('value')} for char in item.get('characteristics', [])]
-        }
-        debug_info.append(debug_data)
-    
-    return jsonify(debug_info)
-
 
 @app.route('/update_gtin', methods=['POST'])
 def update_gtin():
@@ -1028,8 +937,7 @@ def update_gtin():
             return jsonify({'success': False, 'message': 'Не удалось загрузить данные'})
 
         items = assortment_data.get('rows', [])
-        catalog_items = api.filter_for_national_catalog(items)
-        filtered_items = api.process_products_and_variants(catalog_items)
+        filtered_items = api.process_products_and_variants(items)
 
         if product_index >= len(filtered_items):
             return jsonify({'success': False, 'message': f'Товар с индексом {product_index} не найден'})
@@ -1119,106 +1027,7 @@ def check_feed_status_route(feed_id):
             "error": str(e),
             "traceback": traceback.format_exc()
         })
-
-
     
-@app.route('/debug/categories/<tnved>')
-def debug_categories(tnved):
-    """Отладочный маршрут для проверки категорий по ТН ВЭД"""
-    try:
-        from nk_api import get_categories_by_tnved, determine_category_for_tnved, get_attributes_for_category
-        
-        # Получаем категории
-        categories = get_categories_by_tnved(tnved)
-        
-        # Определяем основную категорию
-        main_cat_id = determine_category_for_tnved(tnved)
-        
-        # Получаем обязательные атрибуты для основной категории
-        required_attrs = []
-        if main_cat_id:
-            attrs = get_attributes_for_category(main_cat_id, attr_type="m")
-            required_attrs = [{"id": a.get("attr_id"), "name": a.get("attr_name")} for a in attrs[:10]]
-        
-        return jsonify({
-            "tnved": tnved,
-            "categories": categories,
-            "selected_category": main_cat_id,
-            "required_attributes_sample": required_attrs
-        })
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-
-# Добавьте этот новый маршрут в app.py для отладки
-
-@app.route('/debug_product/<int:product_index>')
-def debug_product_by_index(product_index):
-    """Отладочный маршрут для проверки товара по индексу"""
-    try:
-        print(f"\n🔍 === ОТЛАДКА ТОВАРА ПО ИНДЕКСУ {product_index} ===")
-        
-        # Получаем товар тем же способом, что и при отправке
-        item, is_variant = api.get_product_by_index(product_index)
-        
-        if not item:
-            return jsonify({
-                'error': f'Товар с индексом {product_index} не найден',
-                'index': product_index
-            })
-        
-        # Получаем полные данные товара
-        product_data = api.extract_item_data_with_inheritance(item)
-        
-        # Собираем отладочную информацию
-        debug_info = {
-            'index': product_index,
-            'found': True,
-            'item_raw': {
-                'id': item.get('id'),
-                'name': item.get('name'),
-                'type': item.get('meta', {}).get('type'),
-                'article': item.get('article'),
-                'tnved': item.get('tnved'),
-                'barcodes_count': len(item.get('barcodes', [])),
-                'existing_barcodes': item.get('barcodes', [])
-            },
-            'processed_data': product_data,
-            'is_variant': is_variant,
-            'has_parent': '_parent_product' in item,
-            'parent_info': None
-        }
-        
-        # Если это вариант, добавляем информацию о родителе
-        if is_variant and '_parent_product' in item:
-            parent = item['_parent_product']
-            debug_info['parent_info'] = {
-                'id': parent.get('id'),
-                'name': parent.get('name'),
-                'article': parent.get('article'),
-                'tnved': parent.get('tnved'),
-                'barcodes_count': len(parent.get('barcodes', [])),
-                'existing_barcodes': parent.get('barcodes', [])
-            }
-        
-        print(f"✅ Отладочная информация собрана")
-        return jsonify(debug_info)
-        
-    except Exception as e:
-        print(f"❌ Ошибка отладки: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'error': str(e),
-            'index': product_index,
-            'traceback': traceback.format_exc()
-        })
-
-
-
-# Добавьте эти обновленные роуты в app.py:
-
 def apply_user_changes(product_data, user_changes):
     """Применяет пользовательские изменения к данным товара"""
     if not user_changes:
@@ -1255,8 +1064,7 @@ def preview_nk_card(product_index):
             return jsonify({'error': 'Не удалось загрузить данные'})
         
         items = assortment_data.get('rows', [])
-        catalog_items = api.filter_for_national_catalog(items)
-        filtered_items = api.process_products_and_variants(catalog_items)
+        filtered_items = api.process_products_and_variants(items)
         
         if product_index >= len(filtered_items):
             return jsonify({'error': 'Товар не найден'})
@@ -1324,12 +1132,8 @@ def send_product_to_nk(product_index):
         items = assortment_data.get('rows', [])
         print(f"📦 Всего товаров из API: {len(items)}")
         
-        # Фильтруем товары с галочкой "Для нац.каталога"
-        catalog_items = api.filter_for_national_catalog(items)
-        print(f"🏷️  Товаров с галочкой: {len(catalog_items)}")
-        
         # Обрабатываем товары и варианты
-        filtered_items = api.process_products_and_variants(catalog_items)
+        filtered_items = api.process_products_and_variants(items)
         print(f"✅ Финальный список для отправки: {len(filtered_items)}")
 
         if product_index >= len(filtered_items):
@@ -1480,3 +1284,4 @@ def send_product_to_nk(product_index):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
