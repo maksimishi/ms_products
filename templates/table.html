@@ -336,6 +336,10 @@
                 | Всего в системе: {{ total_items }}
             {% endif %}
         </div>
+
+        <div class="navigation" style="padding:10px;">
+            <button class="action-btn preview-btn" onclick="checkCustomFields()">⚙️ Проверить доп. поля</button>
+        </div>
         
         {% if products %}
         <div class="table-container">
@@ -973,6 +977,35 @@ function checkFeedStatus(feedId, productIndex = null) {
             console.error('Ошибка проверки статуса:', error);
             alert('Ошибка: ' + error);
         });
+}
+
+
+// ---------------------------------
+// Работа с пользовательскими полями
+// ---------------------------------
+function checkCustomFields() {
+    fetch('/custom_fields/check')
+        .then(resp => resp.json())
+        .then(data => {
+            const existing = data.existing || [];
+            const missing = data.missing || [];
+            let msg = `Существующие поля: ${existing.length ? existing.join(', ') : 'нет'}\n`;
+
+            if (missing.length > 0) {
+                if (confirm(msg + `Не хватает полей: ${missing.join(', ')}. Создать?`)) {
+                    fetch('/custom_fields/create', {method: 'POST'})
+                        .then(r => r.json())
+                        .then(res => {
+                            alert('Созданы поля: ' + (res.created || []).join(', '));
+                        });
+                }
+            } else if (data.error) {
+                alert('Ошибка: ' + data.error);
+            } else {
+                alert(msg + 'Все необходимые поля уже созданы');
+            }
+        })
+        .catch(err => alert('Ошибка: ' + err));
 }
 
 
