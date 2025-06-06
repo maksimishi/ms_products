@@ -125,6 +125,11 @@
             font-size: 11px;
             text-transform: uppercase;
         }
+
+        .target-gender,
+        .size-type {
+            font-size: 12px;
+        }
         
         .characteristics {
             font-size: 12px;
@@ -353,6 +358,8 @@
                         <th>Бренд НК</th>
                         <th>Разреш. документы</th>
                         <th>Вид товара</th>
+                        <th>Целевой пол</th>
+                        <th>Вид размера</th>
                         <th>Характеристики</th>
                         <th>Действия</th>
                     </tr>
@@ -433,7 +440,23 @@
                                 <span class="empty-value">Не указан</span>
                             {% endif %}
                         </td>
-                        
+
+                        <td class="target-gender">
+                            {% if product.target_gender %}
+                                {{ product.target_gender }}
+                            {% else %}
+                                <span class="empty-value">Не указан</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="size-type">
+                            {% if product.size_type %}
+                                {{ product.size_type }}
+                            {% else %}
+                                <span class="empty-value">Не указан</span>
+                            {% endif %}
+                        </td>
+
                         <td class="characteristics" data-field-name="color">
                             {% if product.color or product.size %}
                                 {% if product.color %}
@@ -978,7 +1001,6 @@ function checkFeedStatus(feedId, productIndex = null) {
             alert('Ошибка: ' + error);
         });
 }
-
 
 // ---------------------------------
 // Работа с пользовательскими полями

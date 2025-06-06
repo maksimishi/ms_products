@@ -334,7 +334,8 @@ class MoySkladAPI:
             'size': '',
             'product_type': '',
             'tnved': '',
-            'target_gender': '',  # Добавляем поле для целевого пола
+            'target_gender': '',
+            'size_type': '',
             'item_type': item_type,
             # Новые поля для валидации НК
             'color_valid': False,
@@ -384,6 +385,15 @@ class MoySkladAPI:
             data['target_gender'] = parent_attributes[target_gender_attr]
         else:
             data['target_gender'] = ''
+
+        # Вид размера: сначала вариант, потом родитель
+        size_type_attr = 'Вид размера'
+        if size_type_attr in current_attributes and current_attributes[size_type_attr]:
+            data['size_type'] = current_attributes[size_type_attr]
+        elif size_type_attr in parent_attributes:
+            data['size_type'] = parent_attributes[size_type_attr]
+        else:
+            data['size_type'] = ''
         
         # Заполняем данные с логикой наследования
         
@@ -476,7 +486,7 @@ class MoySkladAPI:
             data['size'] = parent_attributes[size_attr]
         
         # Очищаем пустые строки
-        for key in ['name', 'article', 'composition', 'permit_docs', 'color', 'size', 'product_type', 'tnved']:
+        for key in ['name', 'article', 'composition', 'permit_docs', 'color', 'size', 'product_type', 'tnved', 'size_type', 'target_gender']:
             if data[key] in ['None', '', 'nan', 'Нет']:
                 data[key] = ''
         
