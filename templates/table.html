@@ -125,6 +125,11 @@
             font-size: 11px;
             text-transform: uppercase;
         }
+
+        .target-gender,
+        .size-type {
+            font-size: 12px;
+        }
         
         .characteristics {
             font-size: 12px;
@@ -336,6 +341,10 @@
                 | Всего в системе: {{ total_items }}
             {% endif %}
         </div>
+
+        <div class="navigation" style="padding:10px;">
+            <button class="action-btn preview-btn" onclick="checkCustomFields()">⚙️ Проверить доп. поля</button>
+        </div>
         
         {% if products %}
         <div class="table-container">
@@ -349,6 +358,8 @@
                         <th>Бренд НК</th>
                         <th>Разреш. документы</th>
                         <th>Вид товара</th>
+                        <th>Целевой пол</th>
+                        <th>Вид размера</th>
                         <th>Характеристики</th>
                         <th>Действия</th>
                     </tr>
@@ -429,7 +440,23 @@
                                 <span class="empty-value">Не указан</span>
                             {% endif %}
                         </td>
-                        
+
+                        <td class="target-gender">
+                            {% if product.target_gender %}
+                                {{ product.target_gender }}
+                            {% else %}
+                                <span class="empty-value">Не указан</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="size-type">
+                            {% if product.size_type %}
+                                {{ product.size_type }}
+                            {% else %}
+                                <span class="empty-value">Не указан</span>
+                            {% endif %}
+                        </td>
+
                         <td class="characteristics" data-field-name="color">
                             {% if product.color or product.size %}
                                 {% if product.color %}
@@ -468,9 +495,6 @@
                                     {% if not product.tnved or not product.name %}disabled{% endif %}>
                                 📤 В НК
                             </button>
-                            <button class="action-btn" style="background: #ffc107; color: #212529;" data-index="{{ loop.index0 }}" onclick="debugProduct(this.getAttribute('data-index'))">
-                                🔍 Отладка
-                            </button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -484,11 +508,7 @@
         </div>
         {% endif %}
         
-        <div class="navigation">
-            <a href="/analyze" class="nav-link">🔍 Анализ структуры</a>
-            <a href="/all" class="nav-link">📋 Все товары</a>
-            <a href="/test" class="nav-link">🔧 Тест API</a>
-        </div>
+        
     </div>
     
     <!-- Модальное окно -->
@@ -982,160 +1002,75 @@ function checkFeedStatus(feedId, productIndex = null) {
         });
 }
 
-// ===============================================
-// ОТЛАДОЧНЫЕ ФУНКЦИИ
-// ===============================================
-
-function debugProduct(productIndex) {
-    console.log(`🔍 Отлаживаем товар с индексом: ${productIndex}`);
-    
-    fetch(`/debug_product/${productIndex}`)
-        .then(response => response.json())
+// ---------------------------------
+// Работа с пользовательскими полями
+// ---------------------------------
+function checkCustomFields() {
+    fetch('/custom_fields/check')
+        .then(resp => resp.json())
         .then(data => {
             if (data.error) {
-                console.error('❌ Ошибка отладки:', data.error);
-                showModal('Ошибка отладки', `
-                    <h3>❌ Ошибка</h3>
-                    <p>${data.error}</p>
-                    <pre>${data.traceback || ''}</pre>
-                `);
+                alert('Ошибка: ' + data.error);
                 return;
             }
-            
-            let debugContent = `
-                <h3>🔍 Отладочная информация</h3>
-                <p><strong>Индекс:</strong> ${data.index}</p>
-                <p><strong>Тип:</strong> ${data.item_raw.type} ${data.is_variant ? '(вариант)' : '(товар)'}</p>
-                <p><strong>ID:</strong> ${data.item_raw.id}</p>
-                <p><strong>Название:</strong> ${data.item_raw.name}</p>
-                <p><strong>Артикул:</strong> ${data.item_raw.article || 'Не указан'}</p>
-                <p><strong>ТН ВЭД:</strong> ${data.processed_data.tnved || 'Не указан'}</p>
-                <p><strong>Существующих штрихкодов:</strong> ${data.item_raw.barcodes_count}</p>
-                
-                ${data.item_raw.existing_barcodes.length > 0 ? `
-                    <h4>📋 Текущие штрихкоды:</h4>
-                    <ul>
-                        ${data.item_raw.existing_barcodes.map(bc => `<li><code>${JSON.stringify(bc)}</code></li>`).join('')}
-                    </ul>
-                ` : '<p><em>Штрихкодов нет</em></p>'}
-                
-                ${data.parent_info ? `
-                    <h4>👨‍👦 Родительский товар:</h4>
-                    <p><strong>ID:</strong> ${data.parent_info.id}</p>
-                    <p><strong>Название:</strong> ${data.parent_info.name}</p>
-                    <p><strong>Штрихкодов у родителя:</strong> ${data.parent_info.barcodes_count}</p>
-                ` : ''}
-                
-                <div style="margin-top: 15px;">
-                    <button onclick="testManualGtin(${data.index})" class="action-btn send-btn">
-                        🧪 Тест обновления GTIN
-                    </button>
-                </div>
-            `;
-            
-            showModal(`Отладка товара ${data.index}`, debugContent);
+            const existingFields = data.existing || [];
+            const missingFields = data.missing || [];
+
+            let list = '<ul style="list-style:none;padding:0">';
+            existingFields.forEach(name => {
+                list += `<li>${name} - <span style="color:green">создано</span></li>`;
+            });
+            missingFields.forEach(name => {
+                list += `<li>${name} - <button class="action-btn preview-btn" onclick="createField('${name}', this)">Создать</button></li>`;
+            });
+            list += '</ul>';
+
+            if (missingFields.length > 0) {
+                list += `<div style="margin-top:10px;"><button class="action-btn send-btn" onclick="createAllFields()">Создать все</button></div>`;
+            }
+
+            showModal('Дополнительные поля', list);
         })
-        .catch(error => {
-            console.error('Ошибка:', error);
-            alert('Ошибка отладки: ' + error);
-        });
+        .catch(err => alert('Ошибка: ' + err));
 }
 
-function testManualGtin(productIndex) {
-    const testGtin = prompt('Введите тестовый GTIN для проверки обновления:');
-    if (!testGtin) return;
-    
-    // Показываем, как будет выглядеть форматированный GTIN
-    const cleanGtin = testGtin.replace(/\D/g, ''); // убираем нецифровые символы
-    const formattedGtin = cleanGtin.padStart(14, '0'); // дополняем до 14 цифр
-    
-    const confirmMessage = `Проверьте GTIN:\n\nИсходный: ${testGtin}\nОчищенный: ${cleanGtin}\nДля МойСклад: ${formattedGtin}\n\nПродолжить?`;
-    
-    if (!confirm(confirmMessage)) {
-        return;
-    }
-    
-    console.log(`🧪 Тестируем обновление GTIN:`);
-    console.log(`   Товар: ${productIndex}`);
-    console.log(`   Исходный GTIN: ${testGtin}`);
-    console.log(`   Очищенный: ${cleanGtin}`);
-    console.log(`   Форматированный: ${formattedGtin}`);
-    
-    // Показываем индикатор загрузки
-    const modal = document.getElementById('modal');
-    modal.style.display = 'block';
-    document.getElementById('modal-title').textContent = '🧪 Тестируем GTIN...';
-    document.getElementById('modal-body').innerHTML = `
-        <div style="text-align: center; padding: 20px;">
-            <div class="loading-spinner" style="margin: 20px auto;"></div>
-            <p>Отправляем GTIN в МойСклад...</p>
-            <p><strong>Исходный:</strong> <code>${testGtin}</code></p>
-            <p><strong>Форматированный:</strong> <code>${formattedGtin}</code></p>
-        </div>
-    `;
-    
-    fetch(`/update_gtin`, {
+function createField(name, btn) {
+    fetch('/custom_fields/create', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-            product_index: productIndex,
-            gtin: testGtin 
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    })
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.created && data.created.includes(name)) {
+                btn.outerHTML = '<span style="color:green">создано</span>';
+            } else if (data.error) {
+                alert('Ошибка: ' + data.error);
+            }
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('🧪 Результат теста:', data);
-        
-        if (data.success) {
-            showModal('✅ Тест успешен', `
-                <h3>✅ GTIN успешно обновлен</h3>
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
-                    <p><strong>📝 Исходный GTIN:</strong> <code>${testGtin}</code></p>
-                    <p><strong>📋 Сохранен в МС как:</strong> <code>${data.gtin}</code></p>
-                    <p><strong>💬 Сообщение:</strong> ${data.message}</p>
-                    ${data.total_barcodes ? `<p><strong>📊 Всего штрихкодов:</strong> ${data.total_barcodes}</p>` : ''}
-                </div>
-                
-                <div style="margin-top: 15px;">
-                    <button onclick="debugProduct(${productIndex})" class="action-btn preview-btn">
-                        🔄 Обновить отладку
-                    </button>
-                </div>
-            `);
-        } else {
-            showModal('❌ Тест не прошел', `
-                <h3>❌ Ошибка обновления GTIN</h3>
-                <div style="background: #fff5f5; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #e53e3e;">
-                    <p><strong>📝 Пытались обновить:</strong> <code>${testGtin}</code></p>
-                    <p><strong>🔥 Ошибка:</strong> ${data.message}</p>
-                </div>
-                
-                <div style="margin-top: 15px;">
-                    <button onclick="debugProduct(${productIndex})" class="action-btn preview-btn">
-                        🔍 Посмотреть отладку
-                    </button>
-                </div>
-            `);
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка теста:', error);
-        showModal('❌ Ошибка запроса', `
-            <h3>❌ Ошибка сети</h3>
-            <p>Не удалось отправить запрос: ${error}</p>
-            <button onclick="closeModal()" class="action-btn">Закрыть</button>
-        `);
-    });
+        .catch(err => alert('Ошибка: ' + err));
 }
+
+function createAllFields() {
+    fetch('/custom_fields/create', {method: 'POST'})
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.created) {
+                checkCustomFields();
+            } else if (data.error) {
+                alert('Ошибка: ' + data.error);
+            }
+        })
+        .catch(err => alert('Ошибка: ' + err));
+}
+
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Система отслеживания изменений инициализирована');
-    console.log('💾 Объект userChanges:', window.userChanges);
+    // Инициализация объекта пользовательских изменений
 });
 
 </script>
 </body>
 </html>
+
