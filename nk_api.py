@@ -313,8 +313,12 @@ def create_card_data(product_data: dict, cat_id: int | None = None) -> dict:
 
     # ✔ размер
     if size := product_data.get("size"):
-        attrs.append({"attr_id": 35, "attr_value": size,
-                      "attr_value_type": "МЕЖДУНАРОДНЫЙ"})
+        size_type = product_data.get("size_type")
+        attrs.append({
+            "attr_id": 35,
+            "attr_value": size,
+            "attr_value_type": (size_type.upper() if size_type else "МЕЖДУНАРОДНЫЙ")
+        })
 
     # ✔ состав
     if comp := product_data.get("composition"):

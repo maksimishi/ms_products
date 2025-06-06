@@ -174,6 +174,26 @@ class MoySkladAPI:
             if resp.status_code in (200, 201):
                 created.append(name)
         return created
+
+
+    def create_custom_field(self, name):
+        """Создает одно пользовательское поле"""
+        if name not in REQUIRED_CUSTOM_FIELDS:
+            raise ValueError("Unknown field")
+        spec = REQUIRED_CUSTOM_FIELDS[name]
+        if spec["type"] == "customentity":
+            meta = self._create_custom_entity(name, spec.get("values", []))
+            payload = {"name": name, "type": "customentity", "required": False, "customEntityMeta": meta}
+        elif spec["type"] == "boolean":
+            payload = {"name": name, "type": "boolean", "required": False}
+        else:
+            payload = {"name": name, "type": "string", "required": False}
+        url = f"{self.base_url}/entity/product/metadata/attributes"
+        resp = requests.post(url, headers=self.headers, json=payload, timeout=self.timeout)
+        if resp.status_code in (200, 201):
+            return True
+        return False
+
     
     def filter_for_national_catalog(self, items):
         """Фильтрует товары по флажку 'Для нац.каталога'"""
@@ -842,6 +862,15 @@ def check_custom_fields_route():
 
 @app.route('/custom_fields/create', methods=['POST'])
 def create_custom_fields_route():
+
+    """Создает пользовательские атрибуты"""
+    try:
+        data = request.get_json(silent=True) or {}
+        field_name = data.get("name")
+        if field_name:
+            success = api.create_custom_field(field_name)
+            return jsonify({"created": [field_name] if success else []})
+=======
     """Создает отсутствующие пользовательские атрибуты"""
     try:
         created = api.create_missing_custom_fields()
