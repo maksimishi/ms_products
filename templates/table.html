@@ -1013,6 +1013,7 @@ function checkCustomFields() {
                 alert('Ошибка: ' + data.error);
                 return;
             }
+
             const existingFields = data.existing || [];
             const missingFields = data.missing || [];
 
@@ -1021,18 +1022,50 @@ function checkCustomFields() {
                 list += `<li>${name} - <span style="color:green">создано</span></li>`;
             });
             missingFields.forEach(name => {
+            const existing = data.existing || [];
+            const missing = data.missing || [];
+
+            let list = '<ul style="list-style:none;padding:0">';
+            existing.forEach(name => {
+                list += `<li>${name} - <span style="color:green">создано</span></li>`;
+            });
+            missing.forEach(name => {
                 list += `<li>${name} - <button class="action-btn preview-btn" onclick="createField('${name}', this)">Создать</button></li>`;
             });
             list += '</ul>';
 
+
             if (missingFields.length > 0) {
+
+            if (missing.length > 0) {
+
                 list += `<div style="margin-top:10px;"><button class="action-btn send-btn" onclick="createAllFields()">Создать все</button></div>`;
             }
 
             showModal('Дополнительные поля', list);
+
+            const existing = data.existing || [];
+            const missing = data.missing || [];
+            let msg = `Существующие поля: ${existing.length ? existing.join(', ') : 'нет'}\n`;
+
+            if (missing.length > 0) {
+                if (confirm(msg + `Не хватает полей: ${missing.join(', ')}. Создать?`)) {
+                    fetch('/custom_fields/create', {method: 'POST'})
+                        .then(r => r.json())
+                        .then(res => {
+                            alert('Созданы поля: ' + (res.created || []).join(', '));
+                        });
+                }
+            } else if (data.error) {
+                alert('Ошибка: ' + data.error);
+            } else {
+                alert(msg + 'Все необходимые поля уже созданы');
+            }
+
         })
         .catch(err => alert('Ошибка: ' + err));
 }
+
 
 function createField(name, btn) {
     fetch('/custom_fields/create', {
@@ -1049,6 +1082,23 @@ function createField(name, btn) {
             }
         })
         .catch(err => alert('Ошибка: ' + err));
+
+
+
+function createAllFields() {
+    fetch('/custom_fields/create', {method: 'POST'})
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.created) {
+                checkCustomFields();
+            } else if (data.error) {
+                alert('Ошибка: ' + data.error);
+            }
+        })
+        .catch(err => alert('Ошибка: ' + err));
+}
+
+
 }
 
 function createAllFields() {
